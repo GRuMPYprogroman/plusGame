@@ -23,28 +23,16 @@ std::uniform_int_distribution<> distribLoot(MIN_LOOT_CHANCE, MAX_LOOT_CHANCE);
 std::uniform_int_distribution<> distribEffect(MIN_EFFECT_CHANCE, MAX_EFFECT_CHANCE);
 std::uniform_int_distribution<> distirEquip(MIN_EQUIPMENT, MAX_EQUIPMENT);
 
-int main()
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
-	SetConsoleCP(1251);
-	SetConsoleOutputCP(1251);
-
-	std::cout << "Добро пожаловать в 'Потных археологов 2!'\n\n";
-
-	std::cout << "1) Продолжить игру\n2) Начать заново\n\n";
-	
-	int input;
-	std::cin >> input;
-
-	switch (input) {
-	case 1:
-		Game::start();
-		break;
-	case 2:
-		Game::newGame();
-		break;
+	Game game;
+	sf::Clock clock;
+	while (game.getWindowIsOpen())
+	{
+		float deltaTime = clock.restart().asSeconds();
+		game.handleEvent(deltaTime);
+		game.update(deltaTime);
+		game.render();
 	}
-
-	std::cout << "Спасибо за игру!\n";
-
-	return 1;
+	return 0;
 }

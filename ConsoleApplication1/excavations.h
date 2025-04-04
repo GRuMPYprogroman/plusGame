@@ -8,8 +8,10 @@
 #include <thread>
 #include <chrono>
 #include <fstream>
+#include "message.h"
 
 using str = std::string;
+class Message;
 
 class Excavation {
 private:
@@ -18,16 +20,21 @@ private:
 public:
 	Player* const player;
 	std::vector<bool> achievemnts = { false,false,false };
+	sf::Font font{ "../fonts/KenneyBlocks.ttf" };
+	sf::VideoMode mode;
 
-	Excavation(Player* p);
-	virtual ~Excavation() = default;
+	Message* message;
 
-	template<typename T>
+	Excavation(Player* p, sf::VideoMode& mode, sf::RenderWindow* window);
+	virtual ~Excavation();
+
+	template<class T>
 	static bool checkPlayer(Player* player);
 
-	virtual void excavate() = 0;
-	virtual void effect() = 0;
-	virtual void printText() = 0;
+	virtual void excavate(sf::RenderWindow* window) = 0;
+	virtual void effect(sf::RenderWindow* window) = 0;
+	virtual void printText(sf::RenderWindow* window) = 0;
+	virtual void render(sf::RenderWindow* window) = 0;
 
 	void setName(str name);
 
@@ -37,7 +44,9 @@ public:
 
 	const std::map<str, int>& getLoot() const;
 
-	const bool randomItem();
+	const bool randomItem(sf::RenderWindow* window);
+
+	void saveAchievments(int lineNumber, str&& toWrite);
 
 };
 
@@ -46,13 +55,15 @@ public:
 	static const int cost = 10;
 	static const int cost_food = 1;
 
-	ExcavationUnderWater(Player* p);
+	ExcavationUnderWater(Player* p, sf::VideoMode& mode, sf::RenderWindow* window);
 
-	void excavate() override;
+	void excavate(sf::RenderWindow* window) override;
 
-	void effect() override;
+	void effect(sf::RenderWindow* window) override;
 
-	void printText() override;
+	void printText(sf::RenderWindow* window) override;
+
+	void render(sf::RenderWindow* window) override;
 };
 
 class ExcavationVulkano : public Excavation {
@@ -60,13 +71,15 @@ public:
 	static const int cost = 25;
 	static const int cost_food = 2;
 
-	ExcavationVulkano(Player* p);
+	ExcavationVulkano(Player* p, sf::VideoMode& mode, sf::RenderWindow* window);
 
-	void excavate() override;
+	void excavate(sf::RenderWindow* window) override;
 
-	void effect() override;
+	void effect(sf::RenderWindow* window) override;
 
-	void printText() override;
+	void printText(sf::RenderWindow* window) override;
+
+	void render(sf::RenderWindow* window)  override;
 };
 
 class ExcavationMoon : public Excavation {
@@ -74,11 +87,13 @@ public:
 	const static int cost = 50;
 	const static int cost_food = 3;
 
-	ExcavationMoon(Player* p);
+	ExcavationMoon(Player* p, sf::VideoMode& mode, sf::RenderWindow* window);
 
-	void excavate() override;
+	void excavate(sf::RenderWindow* window) override;
 
-	void effect() override;
+	void effect(sf::RenderWindow* window) override;
 
-	void printText() override;
+	void printText(sf::RenderWindow* window) override;
+
+	void render(sf::RenderWindow* window) override;
 };

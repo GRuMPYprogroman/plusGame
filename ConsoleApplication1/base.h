@@ -1,19 +1,25 @@
 #pragma once
 #include "player.h"
 #include "game.h"
-#include <iostream>
 #include <limits>
-#include "shop.h"
-#include "museum.h"
 #include "excavations.h"
+
+class Excavation;
 
 class Base {
 private:
 	Player* player;
 public:
-	Base(Player* player);
-	
-	bool isNullBalance(Player* player);
+	Excavation* excavation;
+	std::vector<Button*> buttons;
+	static inline sf::Font font{ "../fonts/KenneyBlocks.ttf" };
+	sf::Text playerInfo{ font };
 
-	bool awaitResponse();
+	bool isClicked = false;
+
+	Base(sf::VideoMode& mode, sf::RenderWindow* window,Player* player);
+
+	void render(sf::RenderWindow* window);
+
+	void handleEvent(sf::Event& event, sf::RenderWindow* window);
 };

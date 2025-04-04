@@ -1,91 +1,93 @@
 #include "base.h"
 
-Base::Base(Player* player):player(player) {
-		while (true) {
-			if (isNullBalance(player)) {
-				Game::gameOver();
-				break;
+Base::Base(sf::VideoMode& mode, sf::RenderWindow* window, Player* player) :player(player)
+{
+	excavation = nullptr;
+
+	std::stringstream ss1;
+	ss1 << "Excavation underwater\n" << "Price: " << ExcavationUnderWater::cost << "\n" << "Food cost: " << ExcavationUnderWater::cost_food;
+	std::stringstream ss2;
+	ss2 << "Excavation in Vulkano\n" << "Price: " << ExcavationVulkano::cost << "\n" << "Food cost: " << ExcavationVulkano::cost_food;
+	std::stringstream ss3;
+	ss3 << "Excavation on Moon\n" << "Price: " << ExcavationMoon::cost << "\n" << "Food cost: " << ExcavationMoon::cost_food;
+
+	Button* water = new Button(ss1.str(), [this, window, &mode]()
+		{
+			if (Excavation::checkPlayer<ExcavationUnderWater>(this->player))
+			{
+				this->excavation = new ExcavationUnderWater(this->player, mode, window);
+				isClicked = true;
 			}
-			if (!awaitResponse())
-				break;
+		});
+	Button* vulkan = new Button(ss2.str(), [this, window, &mode]()
+		{
+			if (Excavation::checkPlayer<ExcavationVulkano>(this->player))
+			{
+				this->excavation = new ExcavationVulkano(this->player, mode, window);
+				isClicked = true;
+			}
+		});
+	Button* moon = new Button(ss3.str(), [this, window, &mode]()
+		{
+			if (Excavation::checkPlayer<ExcavationMoon>(this->player))
+			{
+				this->excavation = new ExcavationMoon(this->player, mode, window);
+				isClicked = true;
+			}
+		});
+	Button* exit = new Button("Exit", [this, window, &mode]()
+		{
+			Gameplay::currentLocation = Gameplay::locations::city;
+		});
+
+	buttons.push_back(water);
+	buttons.push_back(vulkan);
+	buttons.push_back(moon);
+	buttons.push_back(exit);
+
+	for (auto& button : buttons)
+	{
+		button->setScale({ 0.4f,0.4f });
+	}
+
+	Button::placeHorizontal(mode,buttons);
+
+	std::stringstream ss;
+	ss << "Money: " << player->getMoney() << "\nFood: " << player->getFood();
+
+	playerInfo.setString(ss.str());
+	playerInfo.setCharacterSize(20);
+	playerInfo.setFillColor(sf::Color::White);
+	playerInfo.setPosition({ mode.size.x / 2.0f - 100, mode.size.y / 4.0f - 80 });
+
+}
+
+void Base::render(sf::RenderWindow* window)
+{
+	if (!isClicked)
+	{
+		window->draw(playerInfo);
+		for (auto& button : buttons)
+			button->render(window);
+	}
+	else
+	{
+		excavation->render(window);
+		std::stringstream ss;
+		ss << "Money: " << player->getMoney() << "\nFood: " << player->getFood();
+		playerInfo.setString(ss.str());
+		isClicked = false;
 	}
 }
 
-bool Base::isNullBalance(Player* player)
+void Base::handleEvent(sf::Event& event, sf::RenderWindow* window)
 {
-	return player->getMoney() == 0;
-}
+	std::stringstream ss;
+	ss << "Money: " << player->getMoney() << "\nFood: " << player->getFood();
+	playerInfo.setString(ss.str());
 
-bool Base::awaitResponse() {
-		std::cout << "Выберите желаемое действие:" << "\n";
-		std::cout << "1) Зайти в магазин." << "\n" << "2) Зайти в музей." << "\n" << "3) Отправиться на раскопки.\n" << "4) Сохранить игру и выйти.\n\n";
-		int input;
-
-		if (!(std::cin >> input)) {
-			std::cin.clear();
-			std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-			std::cout << "Неверный ввод! Введите число от 1 до 5.\n";
-			return true;
-		}
-
-		switch (input)
-		{
-		case 1:
-		{
-			auto shop = std::make_unique<Shop>(player);
-			Game::autoSave(player);
-			return true;
-		}
-		case 2:
-		{
-			auto museum = std::make_unique<Museum>();
-			Game::autoSave(player);
-			return true;
-		}
-		case 3:
-		{
-			{
-				std::cout << "Выберите локацию для раскопок:\n";
-				std::cout << "1) Царство Посейдона (-10 шекелей, -1 еда)\n2) Преисподняя (-25 шекелей, -2 еды)\n3) Луна (-50 шекелей, -3 еды)\n";
-				int loc;
-				std::cin >> loc;
-				switch (loc) {
-				case 1:
-					if (ExcavationUnderWater::checkPlayer<ExcavationUnderWater>(player)) {
-						ExcavationUnderWater exc(player);
-					}
-					else {
-						std::cout << "Недостаточно денег или еды!\n";
-					}
-					break;
-				case 2:
-					if (ExcavationVulkano::checkPlayer<ExcavationVulkano>(player)) {
-						ExcavationVulkano exc(player);
-					}
-					else {
-						std::cout << "Недостаточно денег или еды!\n";
-					}
-					break;
-				case 3:
-					if (ExcavationMoon::checkPlayer<ExcavationMoon>(player)) {
-						ExcavationMoon exc(player);
-					}
-					else {
-						std::cout << "Недостаточно денег или еды!\n";
-					}
-					break;
-				default:
-					std::cout << "Неверный ввод! Введите число от 1 до 3.\n";
-					return true;
-				}
-				Game::autoSave(player);
-				return true;
-			}
-		}
-		case 4:
-		{
-			Game::autoSave(player);
-			return false;
-		}
-		}
+	for (auto& button:buttons)
+	{
+		button->handleEvent(event, window);
+	}
 }

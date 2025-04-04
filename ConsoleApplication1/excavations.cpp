@@ -5,23 +5,111 @@ extern std::uniform_int_distribution<> distribLoot;
 extern std::uniform_int_distribution<> distribEffect;
 extern std::uniform_int_distribution<> distirEquip;
 
-Excavation::Excavation(Player* p) : player(p) {}
+//BASE CLASS.............................................................................................................................
 
-const bool Excavation::randomItem() {
-	int rand = distirEquip(gen);
-	std::cout << "Каким снаряжением будем пользоваться?:\n1)Кирка\n2)Кисточка\n3)Лопата\n\n";
-
-	int input;
-	std::cin >> input;
-
-	if (input == rand) {
-		return true;
-	}
-	return false;
+Excavation::Excavation(Player* p, sf::VideoMode& m, sf::RenderWindow* window) : player(p), mode(m)
+{
+	message = new Message{ "",mode };
 }
 
-template<typename T>
-static bool Excavation::checkPlayer(Player* player) {
+Excavation::~Excavation()
+{
+	delete message;
+}
+
+const bool Excavation::randomItem(sf::RenderWindow* window) {
+	int rand = distirEquip(gen);
+	std::stringstream ss;
+	ss << "What equipment will you use?";
+	window->clear();
+	*message = ss.str();
+	message->render(window);
+	window->display();
+
+	std::this_thread::sleep_for(std::chrono::seconds(2));
+	window->clear();
+
+	int input;
+	bool isClicked = false;
+
+	Button* Pickaxe = new Button("Pickaxe", [&input, &isClicked,window]()
+		{
+			input = 1;
+			isClicked = true;
+		});
+	Button* Brush = new Button("Brush", [&input, &isClicked, window]()
+		{
+			input = 2;
+			isClicked = true;
+		});
+	Button* Shovel = new Button("Shovel", [&input, &isClicked, window]()
+		{
+			input = 3;
+			isClicked = true;
+		});
+
+	Button::offset = 0;
+	Pickaxe->placeCenter(mode);
+	Brush->placeCenter(mode);
+	Shovel->placeCenter(mode);
+
+	Pickaxe->render(window);
+	Brush->render(window);
+	Shovel->render(window);
+
+	window->display();
+
+	while (!isClicked) {
+		while (auto event = window->pollEvent()) {
+			if (event.has_value())
+			{
+				Pickaxe->handleEvent(event.value(), window);
+				Brush->handleEvent(event.value(), window);
+				Shovel->handleEvent(event.value(), window);
+			}
+		}
+
+		window->clear();
+		Pickaxe->render(window);
+		Brush->render(window);
+		Shovel->render(window);
+		window->display();
+	}
+
+	delete Pickaxe;
+	delete Brush;
+	delete Shovel;
+
+	return (input != rand);
+}
+
+void Excavation::saveAchievments(int lineNumber, str&& toWrite)
+{
+	str filePath = "playerAchievments.txt";
+	std::vector<std::string> lines;
+	str line;
+
+	std::ifstream inputFile(filePath);
+	if (inputFile.is_open()) {
+		while (std::getline(inputFile, line)) {
+			lines.push_back(line);
+		}
+		inputFile.close();
+	}
+
+	lines[lineNumber - 1] = toWrite;
+
+	std::ofstream outputFile(filePath);
+	if (outputFile.is_open()) {
+		for (const auto& l : lines) {
+			outputFile << l << std::endl;
+		}
+		outputFile.close();
+	}
+}
+
+template<class T>
+bool Excavation::checkPlayer(Player* player) {
 		if (player->getMoney() >= T::cost && player->getFood() >= T::cost_food) {
 			return true;
 		}
@@ -48,303 +136,412 @@ const std::map<str, int>& Excavation::getLoot() const {
 		return this->Loot;
 }
 
+//UNDER WATER................................................................................................................................
 
-ExcavationUnderWater::ExcavationUnderWater(Player* p) :Excavation(p) {
-		setLoot(std::map<std::string, int>{{"Глубоководный Тотем", 10}, { "Коралловая Корона", 25 }, { "Жемчужина Глубин", 50 }});
-		setName("Экспедиция в царство Посейдона.");
-		effect();
-		excavate();
+ExcavationUnderWater::ExcavationUnderWater(Player* p, sf::VideoMode& mode, sf::RenderWindow* window) :Excavation(p,mode,window) {
+		setLoot(std::map<std::string, int>{{"Deepwater Totem", 10}, { "Coral Crown", 25 }, { "Pearl of the Depths", 50 }});
+		setName("Expedition to the kingdom of Poseidon.");
 }
 
-void ExcavationUnderWater::excavate() {
+void ExcavationUnderWater::excavate(sf::RenderWindow* window) {
 		player->setMoney(player->getMoney() - cost);
+		player->setFood(player->getFood() - cost_food);
+
 		int loot_chance = distribLoot(gen);
 		std::map<str, int> Loot = getLoot();
 		auto it = Loot.begin();
 
-		std::cout << getName() << "\n\n";
+		*message = getName();
+		window->clear();
+		message->render(window);
+		window->display();
 
-		printText();
+
+		std::this_thread::sleep_for(std::chrono::seconds(3));
+
+		printText(window);
 
 		if (loot_chance < 40) {
-			std::cout << "Вы ничего не нашли!\n";
-			player->setFood(player->getFood() - cost_food);
-		}
-		else if (loot_chance < 70) {
-			if (randomItem()) 
-			{
-				std::cout << "Найден обычный лут: " << (*it).first << " Стоимостью: " << (*it).second << "\n";
+			*message = "You found nothing!";
+			window->clear();
+			message->render(window);
+			window->display();
 
-				player->setFood(player->getFood() - cost_food);
+			std::this_thread::sleep_for(std::chrono::seconds(3));
+
+		}
+		else if (loot_chance < 70 && loot_chance >= 40) {
+			if (randomItem(window)) 
+			{
+				std::stringstream ss;
+				ss << "Found common loot: " << (*it).first << "\nIt costs: " << (*it).second;
+				*message = ss.str();
+				window->clear();
+				message->render(window);
+				window->display();
+
+				std::this_thread::sleep_for(std::chrono::seconds(3));
+
 				player->setArtifacts(10);
 
 				if (!achievemnts[0]) {
-					std::ofstream out("playerAchievments.txt", std::ios::app);
-					out << (*it).first << "\n";
+					saveAchievments(1, "1");
 					achievemnts[0] = true;
 				}
 			}
 			else 
 			{
-				std::cout << "Применяемый инструмент оказался бесполезен!\n";
+				std::stringstream ss;
+				ss << "Used instrument is useless!";
+				*message = ss.str();
+				window->clear();
+				message->render(window);
+				window->display();
+				std::this_thread::sleep_for(std::chrono::seconds(3));
 			}
 		}
-		else if (loot_chance < 90) {
-			if (randomItem())
+		else if (loot_chance < 90 && loot_chance >= 70) {
+			if (randomItem(window))
 			{
 				++it;
-				std::cout << "Найден редкий лут: " << (*it).first << " Стоимостью: " << (*it).second;
+				std::stringstream ss;
+				ss << "You've found rare loot: " << (*it).first << "\nIt costs: " << (*it).second;
+				*message = ss.str();
+				window->clear();
+				message->render(window);
+				window->display();
 
-				player->setFood(player->getFood() - cost_food);
+				std::this_thread::sleep_for(std::chrono::seconds(3));
+
 				player->setArtifacts(25);
 
 				if (!achievemnts[1]) {
-					std::ofstream out("playerAchievments.txt", std::ios::app);
-					out << (*it).first << "\n";
+					saveAchievments(2, "1");
 					achievemnts[1] = true;
 				}
 			}
 			else
 			{
-				std::cout << "Применяемый инструмент оказался бесполезен!\n";
+				std::stringstream ss;
+				ss << "Used instrument is useless!\n";
+				*message = ss.str();
+				window->clear();
+				message->render(window);
+				window->display();
+
+				std::this_thread::sleep_for(std::chrono::seconds(3));
 			}
 		}
 		else 
 		{
-			if (randomItem()) 
+			if (randomItem(window)) 
 			{
 				std::advance(it, 2);
-				std::cout << "Найден эпический лут: " << (*it).first << " Стоимостью: " << (*it).second;
+				std::stringstream ss;
+				ss << "You've found epic loot: " << (*it).first << "\nIt costs: " << (*it).second;
 
-				player->setFood(player->getFood() - cost_food);
+				*message = ss.str();
+				window->clear();
+				message->render(window);
+				window->display();
+
+				std::this_thread::sleep_for(std::chrono::seconds(3));
+
 				player->setArtifacts(50);
 
 				if (!achievemnts[2]) {
-					std::ofstream out("playerAchievments.txt", std::ios::app);
-					out << (*it).first << "\n";
+					saveAchievments(3, "1");
 					achievemnts[2] = true;
 				}
 			}
 			else 
 			{
-				std::cout << "Применяемый инструмент оказался бесполезен!\n";
+				std::stringstream ss;
+				ss << "Used instrument is useless!";
+				*message = ss.str();
+				window->clear();
+				message->render(window);
+				window->display();
+				std::this_thread::sleep_for(std::chrono::seconds(3));
 			}
 		}
 
 }
 
-void ExcavationUnderWater::effect(){
+void ExcavationUnderWater::effect(sf::RenderWindow* window){
 		int event = distribEffect(gen);
 		if (event) {
-			std::cout << "О нет! ВОДИЧКА УНЕСЛА ВАШУ КУРОЧКУ!\n\n ЕДА УМЕНЬШИЛАСЬ НА ЕДИНИЧКУ.\n\n";
+			*message = "Oh no! THE WATER TOOK YOUR CHICKEN AWAY!\n\n FOOD DECREASED BY ONE.";
+			message->render(window);
+			window->display();
+			std::this_thread::sleep_for(std::chrono::seconds(3));
 			player->setFood(player->getFood() - 1);
 		}
 }
 
-void ExcavationUnderWater::printText(){
-		std::cout << "Буль-буль карасик... водичка кап-кап... кажется дождь начинается...(добываем лут)\n\n";
-		std::this_thread::sleep_for(std::chrono::seconds(4));
+void ExcavationUnderWater::printText(sf::RenderWindow* window){
+	*message = "Gurgle gurgle crucian carp... \nwater drip-drip... looks like it's starting to rain... \n(getting loot)";
+	window->clear();
+	message->render(window);
+	window->display();
+	std::this_thread::sleep_for(std::chrono::seconds(3));
 }
 
-ExcavationVulkano::ExcavationVulkano(Player* p) :Excavation(p) {
-		setLoot(std::map<std::string, int>{{"Камень Сердца Лавы", 20}, { "Пламенные Перчатки", 35 }, { "Лавовый Меч", 50 }});
-		setName("Преисподняя.");
-		effect();
-		excavate();
-	}
+void ExcavationUnderWater::render(sf::RenderWindow* window) 
+{
+	effect(window);
+	excavate(window);
+}
 
-void ExcavationVulkano::excavate(){
+//VULKAN..................................................................................................................
+
+ExcavationVulkano::ExcavationVulkano(Player* p, sf::VideoMode& mode, sf::RenderWindow* window)
+		: Excavation(p, mode, window)
+{
+		setLoot(std::map<std::string, int>{{"Lava Heart Stone", 20}, { "Flame Gloves", 35 }, { "Lava Sword", 50 }});
+		setName("Underworld.");
+}
+
+void ExcavationVulkano::excavate(sf::RenderWindow* window) {
 		player->setMoney(player->getMoney() - cost);
+		player->setFood(player->getFood() - cost_food);
+
 		int loot_chance = distribLoot(gen);
-		std::map<str, int> Loot = getLoot();
+		std::map<std::string, int> Loot = getLoot();
 		auto it = Loot.begin();
 
-		std::cout << getName() << "\n\n";
-
-		printText();
+		printText(window);
 
 		if (loot_chance < 40) {
-			std::cout << "Вы ничего не нашли!\n";
-			player->setFood(player->getFood() - cost_food);
+			*message = "You've found nothing!";
+			window->clear();
+			message->render(window);
+			window->display();
+			std::this_thread::sleep_for(std::chrono::seconds(3));
 		}
-		else if (loot_chance < 70) {
-			if (randomItem())
-			{
-				std::cout << "Найден обычный лут: " << (*it).first << " Стоимостью: " << (*it).second << "\n";
+		else if (loot_chance < 70 && loot_chance >= 40) {
+			if (randomItem(window)) {
+				*message = "Found common loot: " + (*it).first + "\nIt costs: " + std::to_string((*it).second);
+				window->clear();
+				message->render(window);
+				window->display();
+				std::this_thread::sleep_for(std::chrono::seconds(3));
 
-				player->setFood(player->getFood() - cost_food);
-				player->setArtifacts(10);
-
+				player->setArtifacts(20);
 				if (!achievemnts[0]) {
-					std::ofstream out("playerAchievments.txt", std::ios::app);
-					out << (*it).first << "\n";
+					saveAchievments(4, "1");
 					achievemnts[0] = true;
 				}
 			}
-			else
-			{
-				std::cout << "Применяемый инструмент оказался бесполезен!\n";
+			else {
+				*message = "Used instrument is useless!";
+				window->clear();
+				message->render(window);
+				window->display();
+				std::this_thread::sleep_for(std::chrono::seconds(3));
 			}
 		}
-		else if (loot_chance < 90) {
-			if (randomItem())
-			{
+		else if (loot_chance < 90 && loot_chance >= 70) {
+			if (randomItem(window)) {
 				++it;
-				std::cout << "Найден редкий лут: " << (*it).first << " Стоимостью: " << (*it).second;
+				*message = "You've found rare loot: " + (*it).first + "\nIt costs: " + std::to_string((*it).second);
+				window->clear();
+				message->render(window);
+				window->display();
+				std::this_thread::sleep_for(std::chrono::seconds(3));
 
-				player->setFood(player->getFood() - cost_food);
-				player->setArtifacts(25);
-
+				player->setArtifacts(35);
 				if (!achievemnts[1]) {
-					std::ofstream out("playerAchievments.txt", std::ios::app);
-					out << (*it).first << "\n";
+					saveAchievments(5, "1");
 					achievemnts[1] = true;
 				}
 			}
-			else
-			{
-				std::cout << "Применяемый инструмент оказался бесполезен!\n";
+			else {
+				*message = "Used instrument is useless!";
+				window->clear();
+				message->render(window);
+				window->display();
+				std::this_thread::sleep_for(std::chrono::seconds(3));
 			}
 		}
-		else
-		{
-			if (randomItem())
-			{
+		else {
+			if (randomItem(window)) {
 				std::advance(it, 2);
-				std::cout << "Найден эпический лут: " << (*it).first << " Стоимостью: " << (*it).second;
+				*message = "You've found epic loot: " + (*it).first + "\nIt costs: " + std::to_string((*it).second);
+				window->clear();
+				message->render(window);
+				window->display();
+				std::this_thread::sleep_for(std::chrono::seconds(3));
 
-				player->setFood(player->getFood() - cost_food);
 				player->setArtifacts(50);
-
-				if (!achievemnts[2]) {
-					std::ofstream out("playerAchievments.txt", std::ios::app);
-					out << (*it).first << "\n";
-					achievemnts[2] = true;
+				if (!achievemnts[3]) {
+					saveAchievments(6, "1");
+					achievemnts[3] = true;
 				}
 			}
-			else
-			{
-				std::cout << "Применяемый инструмент оказался бесполезен!\n";
+			else {
+				*message = "Used instrument is useless!";
+				window->clear();
+				message->render(window);
+				window->display();
+				std::this_thread::sleep_for(std::chrono::seconds(3));
 			}
 		}
-
 	}
 
-void ExcavationVulkano::effect(){
+	void ExcavationVulkano::effect(sf::RenderWindow* window) {
 		int event = distribEffect(gen);
 		if (event) {
-			std::cout << "О нет! ОГОНЬ СПАЛИЛ ВАШЕ СНАРЯЖЕНИЕ!\n\n\n\n";
+			*message = "Oh no! THE FIRE HAS BURNED YOUR GEAR!";
+			window->clear();
+			message->render(window);
+			window->display();
+			std::this_thread::sleep_for(std::chrono::seconds(3));
+
 			std::uniform_int_distribution<> distribEquipment(0, player->getEquipment().size() - 1);
-
 			int distrib = distribEquipment(gen);
-
 			auto it = (player->getEquipment()).begin();
 			std::advance(it, distrib);
-
-			std::cout << "1 " << (*it).first << "был уничтожен огнём.\n";
 			(*it).second = (*it).second - 1;
 		}
 	}
 
-void ExcavationVulkano::printText(){
-		std::cout << "Жара, жара-а. Жареное солнце больших городов!...(добываем лут)\n\n";
-		std::this_thread::sleep_for(std::chrono::seconds(4));
+	void ExcavationVulkano::printText(sf::RenderWindow* window) {
+		*message = "Heat, heat-ah.\nThe roasting sun of big cities!...(getting loot)";
+		window->clear();
+		message->render(window);
+		window->display();
+		std::this_thread::sleep_for(std::chrono::seconds(3));
 	}
 
-ExcavationMoon::ExcavationMoon(Player* p) :Excavation(p) {
-		setLoot(std::map<std::string, int>{{"Лунный Кристалл Сущности", 40}, { "Лунный Осколок Силы", 70 }, { "Эликсир Звёздной Пыли", 100 }});
-		effect();
-		setName("Кратор на луне.");
-		excavate();
+	void ExcavationVulkano::render(sf::RenderWindow* window) 
+	{
+		effect(window);
+		excavate(window);
+	}
+//MOON...........................................................................................................................................................
+
+	ExcavationMoon::ExcavationMoon(Player* p, sf::VideoMode& mode, sf::RenderWindow* window)
+		: Excavation(p, mode, window) {
+		setLoot(std::map<std::string, int>{{"Moon Crystal Essence", 40}, { "Lunar Power Shard", 70 }, { "Stardust Elixir", 100 }});
+		setName("Crater on the moon.");
 	}
 
-void ExcavationMoon::excavate(){
+	void ExcavationMoon::excavate(sf::RenderWindow* window) {
 		player->setMoney(player->getMoney() - cost);
+		player->setFood(player->getFood() - cost_food);
+
 		int loot_chance = distribLoot(gen);
-		std::map<str, int> Loot = getLoot();
+		std::map<std::string, int> Loot = getLoot();
 		auto it = Loot.begin();
 
-		std::cout << getName() << "\n\n";
-
-		printText();
+		printText(window);
 
 		if (loot_chance < 40) {
-			std::cout << "Вы ничего не нашли!\n";
-			player->setFood(player->getFood() - cost_food);
+			*message = "You've found nothing!";
+			window->clear();
+			message->render(window);
+			window->display();
+			std::this_thread::sleep_for(std::chrono::seconds(3));
 		}
-		else if (loot_chance < 70) {
-			if (randomItem())
-			{
-				std::cout << "Найден обычный лут: " << (*it).first << " Стоимостью: " << (*it).second << "\n";
+		else if (loot_chance < 70 && loot_chance >= 40) {
+			if (randomItem(window)) {
+				*message = "Found common loot: " + (*it).first + "\nIt costs: " + std::to_string((*it).second);
+				window->clear();
+				message->render(window);
+				window->display();
+				std::this_thread::sleep_for(std::chrono::seconds(3));
 
-				player->setFood(player->getFood() - cost_food);
-				player->setArtifacts(10);
-
+				player->setArtifacts(40);
 				if (!achievemnts[0]) {
-					std::ofstream out("playerAchievments.txt", std::ios::app);
-					out << (*it).first << "\n";
+					saveAchievments(7, "1");
 					achievemnts[0] = true;
 				}
 			}
-			else
-			{
-				std::cout << "Применяемый инструмент оказался бесполезен!\n";
+			else {
+				*message = "Used instrument is useless!";
+				window->clear();
+				message->render(window);
+				window->display();
+				std::this_thread::sleep_for(std::chrono::seconds(3));
 			}
 		}
-		else if (loot_chance < 90) {
-			if (randomItem())
-			{
+		else if (loot_chance < 90 && loot_chance >= 70) {
+			if (randomItem(window)) {
 				++it;
-				std::cout << "Найден редкий лут: " << (*it).first << " Стоимостью: " << (*it).second;
+				*message = "You've found rare loot: " + (*it).first + "\nIt costs: " + std::to_string((*it).second);
+				window->clear();
+				message->render(window);
+				window->display();
+				std::this_thread::sleep_for(std::chrono::seconds(3));
 
-				player->setFood(player->getFood() - cost_food);
-				player->setArtifacts(25);
-
+				player->setArtifacts(70);
 				if (!achievemnts[1]) {
-					std::ofstream out("playerAchievments.txt", std::ios::app);
-					out << (*it).first << "\n";
+					saveAchievments(8, "1");
 					achievemnts[1] = true;
 				}
 			}
-			else
-			{
-				std::cout << "Применяемый инструмент оказался бесполезен!\n";
+			else {
+				*message = "Used instrument is useless!";
+				window->clear();
+				message->render(window);
+				window->display();
+				std::this_thread::sleep_for(std::chrono::seconds(3));
 			}
 		}
-		else
-		{
-			if (randomItem())
-			{
+		else {
+			if (randomItem(window)) {
 				std::advance(it, 2);
-				std::cout << "Найден эпический лут: " << (*it).first << " Стоимостью: " << (*it).second;
+				*message = "You've found epic loot: " + (*it).first + "\nIt costs: " + std::to_string((*it).second);
+				window->clear();
+				message->render(window);
+				window->display();
+				std::this_thread::sleep_for(std::chrono::seconds(3));
 
-				player->setFood(player->getFood() - cost_food);
-				player->setArtifacts(50);
-
+				player->setArtifacts(100);
 				if (!achievemnts[2]) {
-					std::ofstream out("playerAchievments.txt", std::ios::app);
-					out << (*it).first << "\n";
+					saveAchievments(9, "1");
 					achievemnts[2] = true;
 				}
 			}
-			else
-			{
-				std::cout << "Применяемый инструмент оказался бесполезен!\n";
+			else {
+				*message = "Used instrument is useless!";
+				window->clear();
+				message->render(window);
+				window->display();
+				std::this_thread::sleep_for(std::chrono::seconds(3));
 			}
 		}
 	}
 
-void ExcavationMoon::effect(){
+	void ExcavationMoon::effect(sf::RenderWindow* window) {
 		int event = distribEffect(gen);
 		if (event) {
-			std::cout << "Я ЗАБЫЛ ЗАКРЫТЬ РЮКЗАЧООООООК!\n\n\n\n";
+			*message = "I FORGOT TO CLOSE MY BACKPAAAAACK!";
+			window->clear();
+			message->render(window);
+			window->display();
+			std::this_thread::sleep_for(std::chrono::seconds(3));
+			*message = "15 shekels left your wallet... (your inner side-swept personality is raging).";
+			window->clear();
+			message->render(window);
+			window->display();
+			std::this_thread::sleep_for(std::chrono::seconds(3));
 
-			std::cout << "15 шекелей покинули ваш бумажник... (ваша внутрення пейсатая личность бушует).\n\n ";
 			player->setMoney(player->getMoney() - 15);
 		}
 	}
 
-void ExcavationMoon::printText(){
-		std::cout << "Земля в иллюминаторе, Земля в иллюминаторе, Земля в иллюминаторе видна...\n\n ";
-		std::this_thread::sleep_for(std::chrono::seconds(4));
-}
+	void ExcavationMoon::printText(sf::RenderWindow* window) {
+		*message = "The Earth is in the porthole, The Earth is in the porthole, The Earth is visible in the porthole...";
+		window->clear();
+		message->render(window);
+		window->display();
+		std::this_thread::sleep_for(std::chrono::seconds(3));
+	}
+
+	void ExcavationMoon::render(sf::RenderWindow* window) 
+	{
+		effect(window);
+		excavate(window);
+	}
